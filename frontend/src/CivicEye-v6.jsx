@@ -5,6 +5,150 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ═══════════════════════════════════════════════
+// LEAFLET MAP COMPONENT (Real OpenStreetMap)
+// ═══════════════════════════════════════════════
+function LeafletMap({ complaints = [] }) {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+
+  // Jaipur default center — change karo apne city ke hisaab se
+  const CENTER = [26.9124, 75.7873];
+  const WARDS = [
+    { name:"Ward 1", lat:26.9200, lng:75.7800, score:72, color:"#FF7020" },
+    { name:"Ward 2", lat:26.9050, lng:75.8000, score:45, color:"#00FF88" },
+    { name:"Ward 3", lat:26.9300, lng:75.7950, score:88, color:"#FF2060" },
+    { name:"Ward 4", lat:26.8980, lng:75.7700, score:31, color:"#00FF88" },
+  ];
+
+  useEffect(() => {
+    // Load Leaflet CSS
+    if (!document.getElementById("leaflet-css")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+
+    // Load Leaflet JS
+    const loadLeaflet = () => {
+      return new Promise((resolve) => {
+        if (window.L) { resolve(window.L); return; }
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.onload = () => resolve(window.L);
+        document.head.appendChild(script);
+      });
+    };
+
+    loadLeaflet().then((L) => {
+      if (!mapRef.current || mapInstanceRef.current) return;
+
+      // Dark tile layer — OpenStreetMap free
+      const map = L.map(mapRef.current, {
+        center: CENTER,
+        zoom: 13,
+        zoomControl: true,
+        attributionControl: false,
+      });
+
+      // Dark theme tiles (CartoDB Dark — bilkul free)
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Ward circles
+      WARDS.forEach(w => {
+        const col = w.score >= 80 ? "#FF2060" : w.score >= 60 ? "#FF7020" : w.score >= 40 ? "#FFCC00" : "#00FF88";
+        L.circle([w.lat, w.lng], {
+          radius: 600,
+          color: col,
+          fillColor: col,
+          fillOpacity: 0.12,
+          weight: 1.5,
+        }).addTo(map).bindPopup(`<b style="color:${col}">${w.name}</b><br/>Risk Score: <b>${w.score}</b>`);
+
+        // Ward label
+        L.marker([w.lat, w.lng], {
+          icon: L.divIcon({
+            html: `<div style="background:rgba(1,8,16,0.85);border:1px solid ${col};border-radius:6px;padding:3px 7px;color:${col};font-size:11px;font-weight:700;font-family:monospace;white-space:nowrap">${w.name} · ${w.score}</div>`,
+            className: "",
+            iconAnchor: [40, 10],
+          })
+        }).addTo(map);
+      });
+
+      // Complaint pins
+      complaints.slice(0, 30).forEach((c, i) => {
+        const sc = c.score || 50;
+        const col = sc >= 85 ? "#FF2060" : sc >= 70 ? "#FF7020" : sc >= 55 ? "#FFCC00" : "#00FF88";
+        const seed = (c.id || "").split("").reduce((a, x) => a + x.charCodeAt(0), 0);
+        const lat = CENTER[0] + ((seed % 40) - 20) * 0.003;
+        const lng = CENTER[1] + (((seed * 3) % 40) - 20) * 0.003;
+
+        const marker = L.circleMarker([lat, lng], {
+          radius: 7,
+          color: col,
+          fillColor: col,
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map);
+
+        marker.bindPopup(`
+          <div style="font-family:monospace;min-width:180px">
+            <div style="color:${col};font-weight:700;margin-bottom:4px">${c.id || "CEP????"}</div>
+            <div style="font-size:12px;margin-bottom:3px">${(c.issue || "").slice(0, 50)}...</div>
+            <div style="color:#888;font-size:11px">Score: ${sc} · ${c.dept || "Unknown"}</div>
+            <div style="color:#888;font-size:11px">Status: ${c.status || "Pending"}</div>
+          </div>
+        `);
+        markersRef.current.push(marker);
+      });
+
+      mapInstanceRef.current = map;
+    });
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update markers when complaints change
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    // Clear old complaint markers
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    const L = window.L;
+    complaints.slice(0, 30).forEach((c) => {
+      const sc = c.score || 50;
+      const col = sc >= 85 ? "#FF2060" : sc >= 70 ? "#FF7020" : sc >= 55 ? "#FFCC00" : "#00FF88";
+      const seed = (c.id || "").split("").reduce((a, x) => a + x.charCodeAt(0), 0);
+      const lat = CENTER[0] + ((seed % 40) - 20) * 0.003;
+      const lng = CENTER[1] + (((seed * 3) % 40) - 20) * 0.003;
+      const marker = L.circleMarker([lat, lng], {
+        radius: 7, color: col, fillColor: col, fillOpacity: 0.9, weight: 2,
+      }).addTo(mapInstanceRef.current);
+      marker.bindPopup(`<div style="font-family:monospace"><b style="color:${col}">${c.id}</b><br/>${(c.issue||"").slice(0,40)}...<br/><small>Score: ${sc}</small></div>`);
+      markersRef.current.push(marker);
+    });
+  }, [complaints]);
+
+  return (
+    <div style={{ position:"relative", width:"100%", height:"100%" }}>
+      <div ref={mapRef} style={{ width:"100%", height:"100%", borderRadius:8 }} />
+      <div style={{ position:"absolute", bottom:10, left:10, zIndex:1000, background:"rgba(1,8,16,0.9)", border:"1px solid #00F5FF33", borderRadius:6, padding:"4px 10px" }}>
+        <span style={{ fontSize:9, color:"#00F5FF", fontFamily:"monospace" }}>🗺 LIVE MAP · {complaints.length} PINS · OpenStreetMap</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
 // PIANO ENGINE
 // ═══════════════════════════════════════════════
 class Piano {
@@ -61,73 +205,35 @@ class Blockchain {
 const BC = new Blockchain();
 
 // ═══════════════════════════════════════════════
-// USER STORE  (Backend API connected)
+// USER STORE  (localStorage)
 // ═══════════════════════════════════════════════
-const BACKEND = "https://civiceye-v6.onrender.com/api";
-
 const Store = {
-  // Keep local fallback for officer/admin seed
-  _local: {
-    all: () => { try { return JSON.parse(localStorage.getItem("ce_u") || "[]"); } catch { return []; } },
-    save: (u) => localStorage.setItem("ce_u", JSON.stringify(u)),
-    find: (mob) => Store._local.all().find(u => u.mobile === mob),
+  all: () => { try { return JSON.parse(localStorage.getItem("ce_u") || "[]"); } catch { return []; } },
+  save: (u) => localStorage.setItem("ce_u", JSON.stringify(u)),
+  find: (mob) => Store.all().find(u => u.mobile === mob),
+  register(d) {
+    const users = Store.all();
+    if (users.find(u => u.mobile === d.mobile)) return { ok: false, msg: "Mobile already registered! Please login." };
+    const u = { ...d, id: "USR" + Date.now(), role: "citizen", ward: d.ward || "Ward 1", joined: new Date().toISOString() };
+    users.push(u); Store.save(users); return { ok: true, user: u };
   },
-
-  // Register via backend, fallback to local
-  async register(d) {
-    try {
-      const res = await fetch(`${BACKEND}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: d.name, mobile: d.mobile, password: d.password, ward: d.ward || "Ward 1" })
-      });
-      const data = await res.json();
-      if (!res.ok) return { ok: false, msg: data.detail || "Registration failed" };
-      const user = { ...data.user, role: data.user.role || "citizen" };
-      return { ok: true, user };
-    } catch {
-      // Fallback to localStorage if backend down
-      const users = Store._local.all();
-      if (users.find(u => u.mobile === d.mobile)) return { ok: false, msg: "Mobile already registered! Please login." };
-      const u = { ...d, id: "USR" + Date.now(), role: "citizen", ward: d.ward || "Ward 1", joined: new Date().toISOString() };
-      users.push(u); Store._local.save(users); return { ok: true, user: u };
-    }
+  login(mob, pwd) {
+    const u = Store.find(mob);
+    if (!u) return { ok: false, msg: "Mobile not registered. Please Sign Up first." };
+    if (u.password !== pwd) return { ok: false, msg: "Wrong password. Try again." };
+    return { ok: true, user: u };
   },
-
-  // Login via backend, fallback to local
-  async login(mob, pwd) {
-    try {
-      const res = await fetch(`${BACKEND}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: mob, password: pwd })
-      });
-      const data = await res.json();
-      if (!res.ok) return { ok: false, msg: data.detail || "Login failed. Check credentials." };
-      const user = { ...data.user, role: data.user.role || "citizen" };
-      return { ok: true, user };
-    } catch {
-      // Fallback to localStorage
-      const u = Store._local.find(mob);
-      if (!u) return { ok: false, msg: "Mobile not registered. Please Sign Up first." };
-      if (u.password !== pwd) return { ok: false, msg: "Wrong password. Try again." };
-      return { ok: true, user: u };
-    }
-  },
-
   sess: {
     get: () => { try { return JSON.parse(localStorage.getItem("ce_s") || "null"); } catch { return null; } },
     set: (u) => localStorage.setItem("ce_s", JSON.stringify(u)),
     clear: () => localStorage.removeItem("ce_s"),
   },
-
   seed() {
-    // Seed local officer/admin for demo fallback
-    const u = Store._local.all();
+    const u = Store.all();
     if (!u.find(x => x.role === "officer")) {
       u.push({ id: "OFF001", name: "Insp. Sharma", mobile: "9999999999", password: "officer@123", role: "officer", dept: "Public Works", ward: "Ward 1", joined: new Date().toISOString() });
       u.push({ id: "ADM001", name: "Commissioner Das", mobile: "8888888888", password: "admin@123", role: "admin", dept: "City Admin", ward: "All", joined: new Date().toISOString() });
-      Store._local.save(u);
+      Store.save(u);
     }
   }
 };
@@ -236,7 +342,7 @@ const C = {
   border: "rgba(0,240,255,0.18)", hi: "rgba(0,240,255,0.32)",
 };
 const UC = { Low: C.green, Medium: C.amber, High: C.orange, Critical: C.red };
-const API = "https://civiceye-v6.onrender.com/api";
+const API = "http://localhost:8000/api";
 const CNAV = [
   { id: "cmd",        icon: "◈",  label: "Command Center" },
   { id: "file",       icon: "📡", label: "File Complaint" },
@@ -792,6 +898,8 @@ function AuthScreen({ onLogin }) {
 
   const sendOTP = async () => {
     if (!form.mobile || form.mobile.length !== 10) { setErr("Valid 10-digit mobile enter karo"); return; }
+    if (view === "signup" && Store.find(form.mobile)) { setErr("Mobile already registered! Login karo."); return; }
+    if (view === "login" && !Store.find(form.mobile)) { setErr("Mobile not registered! Pehle Sign Up karo."); return; }
     if (view === "login" && !form.password) { setErr("Password bhi enter karo"); return; }
     setLoad(true); setErr("");
     await new Promise(r => setTimeout(r, 600));
@@ -804,11 +912,11 @@ function AuthScreen({ onLogin }) {
     if (otpMode === "signup") {
       if (form.password !== form.cp) { setErr("Passwords match nahi karte!"); setLoad(false); return; }
       if (form.password.length < 6) { setErr("Password min 6 characters!"); setLoad(false); return; }
-      const res = await Store.register({ name:form.name, mobile:form.mobile, password:form.password, ward:form.ward||"Ward 1" });
+      const res = Store.register({ name:form.name, mobile:form.mobile, password:form.password, ward:form.ward||"Ward 1" });
       if (!res.ok) { setErr(res.msg); setLoad(false); return; }
       Store.sess.set(res.user); P.ok(); onLogin(res.user);
     } else {
-      const res = await Store.login(form.mobile, form.password);
+      const res = Store.login(form.mobile, form.password);
       if (!res.ok) { setErr(res.msg); setLoad(false); return; }
       Store.sess.set(res.user); P.ok(); onLogin(res.user);
     }
@@ -819,7 +927,7 @@ function AuthScreen({ onLogin }) {
     if (!form.mobile || !form.password) { setErr("Mobile aur password dono zaroori hain"); return; }
     setLoad(true); setErr("");
     await new Promise(r => setTimeout(r, 500));
-    const res = await Store.login(form.mobile, form.password);
+    const res = Store.login(form.mobile, form.password);
     if (!res.ok) { P.err(); setErr(res.msg); setLoad(false); return; }
     Store.sess.set(res.user); P.ok(); onLogin(res.user); setLoad(false);
   };
@@ -1390,32 +1498,8 @@ export default function App() {
                 <Stat label="Corruption" value={corr.length} color={C.purple} icon="⚠"/>
                 <Stat label="Wards" value={4} color={C.green} icon="🗺"/>
               </div>
-              <HCard color={C.blue} style={{ padding:0, overflow:"hidden", height:380 }}>
-                <div style={{ width:"100%", height:"100%", background:"linear-gradient(135deg,#010A12,#020C18)", position:"relative" }}>
-                  <svg width="100%" height="100%" style={{ position:"absolute", inset:0, opacity:.13 }}>
-                    <defs><pattern id="mgrid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M 38 0 L 0 0 0 38" fill="none" stroke={C.cyan} strokeWidth=".35"/></pattern></defs>
-                    <rect width="100%" height="100%" fill="url(#mgrid)"/>
-                  </svg>
-                  {[{x:"33%",y:"28%",r:80,w:"Ward 1",v:72,c:C.orange},{x:"63%",y:"22%",r:68,w:"Ward 2",v:45,c:C.green},{x:"68%",y:"62%",r:86,w:"Ward 3",v:88,c:C.red},{x:"26%",y:"65%",r:63,w:"Ward 4",v:31,c:C.green}].map((w,i) => (
-                    <div key={i} style={{ position:"absolute", left:w.x, top:w.y, transform:"translate(-50%,-50%)" }}>
-                      <div style={{ width:w.r*2, height:w.r*2, borderRadius:"50%", border:`1px solid ${w.c}35`, background:`radial-gradient(circle,${w.c}07,transparent 70%)`, animation:"float 4s ease-in-out infinite" }}/>
-                      <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                        <div style={{ fontSize:8, color:w.c, fontFamily:"'Share Tech Mono'", fontWeight:700 }}>{w.w}</div>
-                        <div style={{ fontSize:13, color:w.c, fontFamily:"'Share Tech Mono'", fontWeight:700 }}>{w.v}</div>
-                      </div>
-                    </div>
-                  ))}
-                  {cpts.slice(0,20).map((c,i) => {
-                    const sc = c.score||50;
-                    const col = sc>=85?C.red:sc>=70?C.orange:sc>=55?C.amber:C.green;
-                    const seed = (c.id||"").split("").reduce((a,x)=>a+x.charCodeAt(0),0);
-                    const lx = 20 + (seed % 60), ly = 20 + ((seed*2) % 60);
-                    return <div key={i} style={{ position:"absolute", left:`${lx}%`, top:`${ly}%`, width:9, height:9, borderRadius:"50%", background:col, boxShadow:`0 0 7px ${col}`, animation:`pulse ${2+i*.1}s ease-in-out infinite`, cursor:"pointer" }} onClick={() => { P.click(); toast(`${c.id}: ${c.issue?.slice(0,30)}...`, "info"); }}/>;
-                  })}
-                  <div style={{ position:"absolute", bottom:10, left:10, background:"rgba(1,4,8,0.9)", border:`1px solid ${C.border}`, borderRadius:6, padding:"5px 9px" }}>
-                    <span style={{ fontSize:7.5, color:C.cyan, fontFamily:"'Share Tech Mono'" }}>HOLOGRAPHIC MAP · {cpts.length} PINS</span>
-                  </div>
-                </div>
+              <HCard color={C.blue} style={{ padding:0, overflow:"hidden", height:420 }}>
+                <LeafletMap complaints={cpts} />
               </HCard>
             </div>
           )}

@@ -342,7 +342,7 @@ const C = {
   border: "rgba(0,240,255,0.18)", hi: "rgba(0,240,255,0.32)",
 };
 const UC = { Low: C.green, Medium: C.amber, High: C.orange, Critical: C.red };
-const API = "http://localhost:8000/api";
+const API = "https://civiceye-v6.onrender.com/api";
 const CNAV = [
   { id: "cmd",        icon: "◈",  label: "Command Center" },
   { id: "file",       icon: "📡", label: "File Complaint" },

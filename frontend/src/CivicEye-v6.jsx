@@ -1390,7 +1390,7 @@ export default function App() {
                 <Stat label="Corruption" value={corr.length} color={C.purple} icon="GÜá"/>
                 <Stat label="Wards" value={4} color={C.green} icon="=ƒù¦"/>
               </div>
-              <HCard color={C.blue} style={{ padding:0, overflow:"hidden", height:"380px" }}>
+              <HCard color={C.blue} style={{ padding:0, overflow:"hidden", height:380 }}>
                 <div style={{ width:"100%", height:"100%", background:"linear-gradient(135deg,#010A12,#020C18)", position:"relative" }}>
                   <svg width="100%" height="100%" style={{ position:"absolute", inset:0, opacity:.13 }}>
                     <defs><pattern id="mgrid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M 38 0 L 0 0 0 38" fill="none" stroke={C.cyan} strokeWidth=".35"/></pattern></defs>
@@ -1669,4 +1669,5 @@ export default function App() {
     </div>
   );
 }
+
 

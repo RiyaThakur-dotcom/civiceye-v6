@@ -1499,7 +1499,7 @@ export default function App() {
                 <Stat label="Wards" value={4} color={C.green} icon="ðŸ—º"/>
               </div>
               <HCard color={C.blue} style={{ padding:0, overflow:"hidden", height:420 }}>
-                <LeafletMap complaints={cpts} />
+                <div style={{width:"100%",height:"100%",position:"relative",background:"#010A12"}}><iframe src="https://www.openstreetmap.org/export/embed.html?bbox=75.7373%2C26.8624%2C75.8373%2C26.9624&layer=cyclemap" style={{width:"100%",height:"100%",border:"none",opacity:0.85,filter:"invert(1) hue-rotate(180deg)"}}></iframe><div style={{position:"absolute",bottom:10,left:10,background:"rgba(1,8,16,0.9)",border:"1px solid #00F5FF33",borderRadius:6,padding:"4px 10px"}}><span style={{fontSize:9,color:"#00F5FF",fontFamily:"monospace"}}>?? LIVE MAP · OpenStreetMap · Jaipur</span></div></div>
               </HCard>
             </div>
           )}
@@ -1753,3 +1753,4 @@ export default function App() {
     </div>
   );
 }
+
